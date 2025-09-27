@@ -1,78 +1,80 @@
 import React, { useMemo, useState } from "react";
 
 /**
- * Single‑file guidance page for: đăng ký – cấp GCN lần đầu
- * Trường hợp: Hộ gia đình, cá nhân đang sử dụng đất KHÔNG có giấy tờ, không vi phạm pháp luật đất đai.
- * Căn cứ chính: Luật Đất đai 2024 (Điều 138); Nghị định 101/2024 (thủ tục); Nghị định 102/2024; Nghị định 103/2024 (Điều 10 – tiền sử dụng đất).
+ * Trang hướng dẫn đăng ký – cấp GCN lần đầu (trường hợp không có giấy tờ)
+ * Căn cứ: Điều 138 Luật Đất đai 2024; NĐ 101/2024 (thủ tục); NĐ 102/2024; NĐ 103/2024 (Điều 10 – tiền SDĐ)
  *
- * Notes
- * - Styling uses Tailwind utility classes. Drop this file into any React/Tailwind app (Vite/Next/CRA) and it will render a clean, printable guide.
- * - Includes a simple fee helper calculator for quick estimates (tham khảo). Hãy tùy chỉnh hạn mức/giá đất theo địa phương.
+ * Lưu ý: File là JSX/React thuần (không TypeScript) để tránh lỗi build. Dùng Tailwind cho giao diện.
  */
 
-const Section = ({ id, title, children }: { id: string; title: string; children: React.ReactNode }) => (
+// ---- Tiny UI helpers ----
+const Section = ({ id, title, children }) => (
   <section id={id} className="scroll-mt-24">
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mb-4">{title}</h2>
-      <div className="prose prose-slate max-w-none prose-headings:mb-2 prose-p:leading-relaxed">
-        {children}
-      </div>
+      <div className="prose prose-slate max-w-none prose-p:leading-relaxed">{children}</div>
     </div>
   </section>
 );
 
-const Pill = ({ children }: { children: React.ReactNode }) => (
+const Pill = ({ children }) => (
   <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium bg-white/60 shadow-sm gap-2">
     {children}
   </span>
 );
 
-function currency(n: number) {
-  if (!isFinite(n)) return "—";
-  return n.toLocaleString("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
+function currency(n) {
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return n.toLocaleString("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
+  } catch {
+    return `${n}`;
+  }
 }
 
 export default function GuideCapGCNKhongGiayTo() {
   // --- Fee helper state ---
-  const [area, setArea] = useState<number>(150); // m2
-  const [limit, setLimit] = useState<number>(100); // m2 trong hạn mức địa phương
-  const [priceTable, setPriceTable] = useState<number>(10000000); // Giá đất theo Bảng giá (VND/m2)
-  const [priceSpecific, setPriceSpecific] = useState<number>(12000000); // Giá đất cụ thể (VND/m2)
-  const [tier, setTier] = useState<
-    "10" | "20" | "40" | "50" | "60" | "100"
-  >("50");
+  const [area, setArea] = useState(150); // m² xin công nhận
+  const [limit, setLimit] = useState(100); // m² hạn mức địa phương
+  const [priceTable, setPriceTable] = useState(10000000); // giá đất bảng giá (VND/m²)
+  const [priceSpecific, setPriceSpecific] = useState(12000000); // giá đất cụ thể (VND/m²)
+  const [tier, setTier] = useState("50"); // 10 | 20 | 40 | 50 | 60 | 100
 
-  const within = Math.max(0, Math.min(area, limit));
-  const exceed = Math.max(0, area - limit);
+  const within = Math.max(0, Math.min(Number(area) || 0, Number(limit) || 0));
+  const exceed = Math.max(0, (Number(area) || 0) - (Number(limit) || 0));
 
   const pctWithin = useMemo(() => {
     switch (tier) {
-      case "10":
-        return 0.10;
-      case "20":
-        return 0.20;
-      case "40":
-        return 0.40;
-      case "50":
-        return 0.50;
-      case "60":
-        return 0.60;
-      case "100":
-        return 1.0; // hiếm dùng cho trong hạn mức, chỉ để mô phỏng trường hợp phải nộp đủ
-      default:
-        return 0.5;
+      case "10": return 0.10;
+      case "20": return 0.20;
+      case "40": return 0.40;
+      case "50": return 0.50;
+      case "60": return 0.60;
+      case "100": return 1.00; // hiếm khi áp dụng cho trong hạn mức
+      default: return 0.50;
     }
   }, [tier]);
 
-  const tienTrongHan = within * priceTable * pctWithin;
-  const tienVuotHan = exceed * priceSpecific * 1.0; // 100%
-  // Lệ phí trước bạ: quy ước tham khảo = 0.5% * (area * priceTable)
-  const lePhiTruocBa = area * priceTable * 0.005;
+  const safePriceTable = Number(priceTable) || 0;
+  const safePriceSpecific = Number(priceSpecific) || 0;
+
+  const tienTrongHan = within * safePriceTable * pctWithin; // theo bảng giá × tỷ lệ %
+  const tienVuotHan = exceed * safePriceSpecific * 1.0; // 100% theo giá cụ thể
+  const lePhiTruocBa = (Number(area) || 0) * safePriceTable * 0.005; // 0,5% × diện tích × bảng giá
   const tong = tienTrongHan + tienVuotHan + lePhiTruocBa;
+
+  const tiers = [
+    { k: "10", t: "10%" },
+    { k: "20", t: "20%" },
+    { k: "40", t: "40%" },
+    { k: "50", t: "50%" },
+    { k: "60", t: "60%" },
+    { k: "100", t: "100%" },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-800">
-      {/* Header / Hero */}
+      {/* Header */}
       <header className="sticky top-0 z-40 backdrop-blur bg-white/70 border-b">
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -112,26 +114,26 @@ export default function GuideCapGCNKhongGiayTo() {
       {/* Nội dung */}
       <Section id="tong-quan" title="1) Nội dung & điều kiện cốt lõi">
         <ul>
-          <li>Đất đang sử dụng <strong>ổn định</strong>; không tranh chấp; không lấn chiếm, không vi phạm hành lang bảo vệ công trình; <em>phù hợp quy hoạch</em>.</li>
-          <li>Được UBND cấp xã xác nhận thực tế sử dụng và tình trạng tranh chấp.</li>
-          <li>Diện tích công nhận đất ở có xét <strong>hạn mức</strong> theo địa phương.</li>
+          <li>Đất đang sử dụng <strong>ổn định</strong>; không tranh chấp; không lấn chiếm; <em>phù hợp quy hoạch</em>.</li>
+          <li>UBND cấp xã xác nhận nguồn gốc, thời điểm sử dụng và tình trạng tranh chấp.</li>
+          <li>Diện tích đất ở được công nhận có xét <strong>hạn mức</strong> theo quy định địa phương.</li>
         </ul>
       </Section>
 
       <Section id="ho-so" title="2) Hồ sơ cần chuẩn bị (mẫu sẵn dùng)">
         <ol>
-          <li><strong>Đơn đăng ký, cấp GCN lần đầu</strong> (Mẫu 04/ĐK – nộp 01 bản).</li>
-          <li><strong>Giấy tờ nhân thân</strong>: CCCD/CMND, sổ hộ khẩu/định danh cư trú.</li>
-          <li><strong>Trích đo địa chính / hồ sơ kỹ thuật thửa đất</strong> (do VPĐKĐĐ lập hoặc đơn vị có chức năng).</li>
-          <li><strong>Chứng cứ sử dụng ổn định</strong> (nếu có): biên lai thuế, hóa đơn điện nước, ảnh hiện trạng, giấy tờ khu phố/thôn.</li>
-          <li><strong>Tờ khai nghĩa vụ tài chính</strong> (do cơ quan thuế/VPĐKĐĐ phát hành sau khi nhận Phiếu chuyển thông tin).</li>
+          <li><strong>Đơn đăng ký, cấp GCN lần đầu</strong> (Mẫu 04/ĐK – 01 bản).</li>
+          <li><strong>Giấy tờ nhân thân</strong>: CCCD/CMND, sổ hộ khẩu/định danh.</li>
+          <li><strong>Trích đo địa chính / hồ sơ kỹ thuật thửa đất</strong> (VPĐKĐĐ hoặc đơn vị đủ điều kiện lập).</li>
+          <li><strong>Chứng cứ sử dụng ổn định</strong> (nếu có): biên lai thuế, hóa đơn điện nước, ảnh hiện trạng, xác nhận khu phố/thôn.</li>
+          <li><strong>Tờ khai nghĩa vụ tài chính</strong> (phát hành sau khi có Phiếu chuyển thông tin sang cơ quan thuế).</li>
         </ol>
         <details className="mt-4">
           <summary className="cursor-pointer text-sky-700 font-medium">Mẹo chuẩn bị nhanh</summary>
           <ul className="mt-2">
-            <li>Thu thập đủ chứng cứ dùng đất qua các thời điểm (càng sớm càng tốt) để chứng minh ổn định.</li>
+            <li>Thu thập chứng cứ theo mốc thời gian càng sớm càng tốt để chứng minh ổn định.</li>
             <li>Kiểm tra quy hoạch sử dụng đất tại địa phương trước khi nộp.</li>
-            <li>Đo, cắm mốc ranh giới rõ ràng; lập biên bản ranh giới với liền kề (nếu cần).</li>
+            <li>Cắm mốc, mô tả ranh giới rõ ràng; biên bản mốc ranh với liền kề (nếu cần).</li>
           </ul>
         </details>
       </Section>
@@ -139,14 +141,14 @@ export default function GuideCapGCNKhongGiayTo() {
       <Section id="quy-trinh" title="3) Quy trình thực hiện – 7 bước">
         <ol>
           <li><strong>Nộp hồ sơ</strong> tại UBND cấp xã (nếu tiếp nhận) hoặc Chi nhánh VPĐKĐĐ nơi có đất.</li>
-          <li><strong>Kiểm tra – tiếp nhận</strong>: cấp giấy hẹn; nếu thiếu sẽ yêu cầu bổ sung.</li>
-          <li><strong>Đo đạc – lập hồ sơ địa chính</strong>: VPĐKĐĐ tổ chức đo/kiểm tra; cập nhật bản đồ địa chính.</li>
-          <li><strong>Xác nhận của UBND xã</strong>: về nguồn gốc, thời điểm, tình trạng tranh chấp, quy hoạch.</li>
-          <li><strong>Phiếu chuyển thông tin</strong> sang cơ quan thuế để xác định nghĩa vụ tài chính.</li>
-          <li><strong>Thông báo nộp tiền</strong>: tiền sử dụng đất (Điều 10 NĐ 103), lệ phí trước bạ, phí thẩm định…</li>
+          <li><strong>Tiếp nhận & giấy hẹn</strong> (thiếu sẽ yêu cầu bổ sung).</li>
+          <li><strong>Đo đạc – lập hồ sơ địa chính</strong> (VPĐKĐĐ).</li>
+          <li><strong>UBND xã xác nhận</strong> nguồn gốc, thời điểm sử dụng, tranh chấp, quy hoạch.</li>
+          <li><strong>Phiếu chuyển thông tin</strong> sang cơ quan thuế để tính nghĩa vụ.</li>
+          <li><strong>Thông báo nộp tiền</strong>: tiền SDĐ (Điều 10 NĐ 103), LPTB, phí thẩm định…</li>
           <li><strong>Nộp tiền & nhận GCN</strong> tại bộ phận một cửa/VPĐKĐĐ theo giấy hẹn.</li>
         </ol>
-        <p className="mt-3 text-sm text-slate-600">Thời hạn thông thường: ≤ 30 ngày làm việc kể từ khi nhận đủ hồ sơ hợp lệ (khu vực khó khăn có thể dài hơn).</p>
+        <p className="mt-3 text-sm text-slate-600">Thời hạn thường ≤ 30 ngày làm việc (khu vực khó khăn có thể dài hơn).</p>
       </Section>
 
       <Section id="phi-thue" title="4) Tiền sử dụng đất (\"thuế đất\") – Điều 10 NĐ 103/2024">
@@ -155,15 +157,15 @@ export default function GuideCapGCNKhongGiayTo() {
             <h3 className="font-semibold mb-3">Tóm tắt mức thu theo nguồn gốc</h3>
             <ul className="space-y-2 text-sm">
               <li>🔹 <strong>10% – 20%</strong>: Nhận chuyển nhượng <em>không giấy tờ</em> nhưng sử dụng ổn định, phù hợp quy hoạch (trong hạn mức).</li>
-              <li>🔹 <strong>40% – 60%</strong>: Đất nông nghiệp/vườn/ao hoặc giao không đúng thẩm quyền, nay công nhận thành đất ở (trong hạn mức).</li>
-              <li>🔹 <strong>50%</strong>: Đất ở <em>không có giấy tờ</em>, sử dụng ổn định, trong hạn mức.</li>
-              <li>🔹 <strong>100%</strong>: Phần <em>vượt hạn mức</em> (tính theo <strong>giá đất cụ thể</strong>); hoặc trường hợp pháp luật yêu cầu nộp đủ.</li>
+              <li>🔹 <strong>40% – 60%</strong>: Đất nông nghiệp/vườn/ao hoặc giao không đúng thẩm quyền, nay công nhận đất ở (trong hạn mức).</li>
+              <li>🔹 <strong>50%</strong>: Đất ở <em>không giấy tờ</em>, sử dụng ổn định, trong hạn mức.</li>
+              <li>🔹 <strong>100%</strong>: Phần <em>vượt hạn mức</em> (tính theo <strong>giá đất cụ thể</strong>) hoặc trường hợp phải nộp đủ.</li>
             </ul>
             <div className="mt-4 text-xs text-slate-600">
               <p><strong>Giá đất áp dụng</strong>:</p>
               <ul className="list-[square] pl-5 mt-1">
-                <li>Trong hạn mức: dùng <em>Bảng giá đất</em> của tỉnh.</li>
-                <li>Vượt hạn mức: dùng <em>Giá đất cụ thể</em> do UBND tỉnh quyết định.</li>
+                <li>Trong hạn mức: sử dụng <em>Bảng giá đất</em> của tỉnh.</li>
+                <li>Vượt hạn mức: sử dụng <em>Giá đất cụ thể</em> do UBND tỉnh quyết định.</li>
               </ul>
             </div>
           </div>
@@ -173,24 +175,24 @@ export default function GuideCapGCNKhongGiayTo() {
             <h3 className="font-semibold mb-3">Ước tính nhanh (tham khảo)</h3>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <label className="col-span-1">Diện tích xin công nhận (m²)
-                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={area} min={0} onChange={(e) => setArea(Number(e.target.value))} />
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={area} min={0} onChange={(e) => setArea(parseFloat(e.target.value) || 0)} />
               </label>
               <label className="col-span-1">Hạn mức đất ở (m²)
-                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={limit} min={0} onChange={(e) => setLimit(Number(e.target.value))} />
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={limit} min={0} onChange={(e) => setLimit(parseFloat(e.target.value) || 0)} />
               </label>
               <label>Giá đất (Bảng giá) – VND/m²
-                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={priceTable} min={0} onChange={(e) => setPriceTable(Number(e.target.value))} />
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={priceTable} min={0} onChange={(e) => setPriceTable(parseFloat(e.target.value) || 0)} />
               </label>
               <label>Giá đất cụ thể – VND/m²
-                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={priceSpecific} min={0} onChange={(e) => setPriceSpecific(Number(e.target.value))} />
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={priceSpecific} min={0} onChange={(e) => setPriceSpecific(parseFloat(e.target.value) || 0)} />
               </label>
             </div>
 
             <div className="mt-4">
               <p className="text-sm font-medium mb-2">Chọn tỷ lệ trong hạn mức (nguồn gốc đất):</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                {[{k:"10",t:"10%"},{k:"20",t:"20%"},{k:"40",t:"40%"},{k:"50",t:"50%"},{k:"60",t:"60%"},{k:"100",t:"100%"}].map(opt => (
-                  <button key={opt.k} onClick={() => setTier(opt.k as any)} className={`rounded-lg border px-3 py-2 ${tier===opt.k?"bg-sky-600 text-white border-sky-700":"bg-white hover:bg-slate-50"}`}>
+                {tiers.map((opt) => (
+                  <button key={opt.k} onClick={() => setTier(opt.k)} className={`rounded-lg border px-3 py-2 ${tier === opt.k ? "bg-sky-600 text-white border-sky-700" : "bg-white hover:bg-slate-50"}`}>
                     {opt.t}
                   </button>
                 ))}
@@ -211,11 +213,11 @@ export default function GuideCapGCNKhongGiayTo() {
         </div>
       </Section>
 
-      <Section id="tro-giup" title="5) Ghi chú quan trọng & liên hệ hỗ trợ">
+      <Section id="tro-giup" title="5) Ghi chú quan trọng & tải biểu mẫu">
         <ul>
-          <li><strong>Hạn mức</strong> khác nhau theo quận/huyện/tỉnh – hãy tra cứu văn bản hiện hành của địa phương.</li>
-          <li><strong>Giá đất</strong> dùng để tính nghĩa vụ: trong hạn mức = Bảng giá đất; vượt hạn mức = Giá đất cụ thể.</li>
-          <li>Chuẩn bị đầy đủ <em>chứng cứ sử dụng ổn định</em> giúp rút ngắn thời gian thẩm định và làm rõ nguồn gốc.</li>
+          <li><strong>Hạn mức</strong> khác nhau theo địa phương – tra cứu văn bản hiện hành của tỉnh/thành.</li>
+          <li><strong>Giá đất</strong> tính nghĩa vụ: trong hạn mức = Bảng giá đất; vượt hạn mức = Giá đất cụ thể.</li>
+          <li>Chuẩn bị đầy đủ <em>chứng cứ sử dụng ổn định</em> để làm rõ nguồn gốc, rút ngắn thẩm định.</li>
         </ul>
         <div className="mt-4 rounded-xl border bg-white p-4 text-sm">
           <p className="font-medium">Tải biểu mẫu (tham khảo)</p>
@@ -225,14 +227,254 @@ export default function GuideCapGCNKhongGiayTo() {
             <li><a className="text-sky-700 hover:underline" href="#">Tờ khai lệ phí trước bạ</a></li>
           </ul>
         </div>
-        <p className="mt-3 text-xs text-slate-500">(*) Văn bản dẫn chiếu: Điều 138 Luật Đất đai 2024; NĐ 101/2024; NĐ 102/2024; Điều 3–6 & Điều 10 NĐ 103/2024.</p>
+        <p className="mt-3 text-xs text-slate-500">Dẫn chiếu pháp lý: Điều 138 Luật Đất đai 2024; NĐ 101/2024; NĐ 102/2024; Điều 3–6 & Điều 10 NĐ 103/2024.</p>
       </Section>
 
       {/* Footer */}
       <footer className="mx-auto max-w-5xl px-4 pb-12">
         <div className="border rounded-2xl p-5 bg-white text-sm text-slate-600">
-          Trang hướng dẫn được thiết kế để in ra hoặc chia sẻ trực tuyến. Bạn có thể tùy chỉnh hạn mức, giá đất,
-          và tỷ lệ theo hồ sơ thực tế của địa phương.
+          Trang hướng dẫn có thể in hoặc chia sẻ trực tuyến. Tùy chỉnh hạn mức, giá đất và tỷ lệ theo hồ sơ thực tế của địa phương.
+        </div>
+      </footer>
+    </div>
+  );
+}
+import React, { useMemo, useState } from "react";
+
+/**
+ * Trang hướng dẫn đăng ký – cấp GCN lần đầu (trường hợp không có giấy tờ)
+ * Căn cứ: Điều 138 Luật Đất đai 2024; NĐ 101/2024 (thủ tục); NĐ 102/2024; NĐ 103/2024 (Điều 10 – tiền SDĐ)
+ *
+ * Lưu ý: File là JSX/React thuần (không TypeScript) để tránh lỗi build. Dùng Tailwind cho giao diện.
+ */
+
+// ---- Tiny UI helpers ----
+const Section = ({ id, title, children }) => (
+  <section id={id} className="scroll-mt-24">
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <h2 className="text-2xl md:text-3xl font-semibold tracking-tight mb-4">{title}</h2>
+      <div className="prose prose-slate max-w-none prose-p:leading-relaxed">{children}</div>
+    </div>
+  </section>
+);
+
+const Pill = ({ children }) => (
+  <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium bg-white/60 shadow-sm gap-2">
+    {children}
+  </span>
+);
+
+function currency(n) {
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return n.toLocaleString("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
+  } catch {
+    return `${n}`;
+  }
+}
+
+export default function GuideCapGCNKhongGiayTo() {
+  // --- Fee helper state ---
+  const [area, setArea] = useState(150); // m² xin công nhận
+  const [limit, setLimit] = useState(100); // m² hạn mức địa phương
+  const [priceTable, setPriceTable] = useState(10000000); // giá đất bảng giá (VND/m²)
+  const [priceSpecific, setPriceSpecific] = useState(12000000); // giá đất cụ thể (VND/m²)
+  const [tier, setTier] = useState("50"); // 10 | 20 | 40 | 50 | 60 | 100
+
+  const within = Math.max(0, Math.min(Number(area) || 0, Number(limit) || 0));
+  const exceed = Math.max(0, (Number(area) || 0) - (Number(limit) || 0));
+
+  const pctWithin = useMemo(() => {
+    switch (tier) {
+      case "10": return 0.10;
+      case "20": return 0.20;
+      case "40": return 0.40;
+      case "50": return 0.50;
+      case "60": return 0.60;
+      case "100": return 1.00; // hiếm khi áp dụng cho trong hạn mức
+      default: return 0.50;
+    }
+  }, [tier]);
+
+  const safePriceTable = Number(priceTable) || 0;
+  const safePriceSpecific = Number(priceSpecific) || 0;
+
+  const tienTrongHan = within * safePriceTable * pctWithin; // theo bảng giá × tỷ lệ %
+  const tienVuotHan = exceed * safePriceSpecific * 1.0; // 100% theo giá cụ thể
+  const lePhiTruocBa = (Number(area) || 0) * safePriceTable * 0.005; // 0,5% × diện tích × bảng giá
+  const tong = tienTrongHan + tienVuotHan + lePhiTruocBa;
+
+  const tiers = [
+    { k: "10", t: "10%" },
+    { k: "20", t: "20%" },
+    { k: "40", t: "40%" },
+    { k: "50", t: "50%" },
+    { k: "60", t: "60%" },
+    { k: "100", t: "100%" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-800">
+      {/* Header */}
+      <header className="sticky top-0 z-40 backdrop-blur bg-white/70 border-b">
+        <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-2xl bg-sky-500/10 border border-sky-200 grid place-items-center">
+              <span className="text-sky-600 text-lg">ℹ️</span>
+            </div>
+            <h1 className="text-base md:text-lg font-semibold">Hướng dẫn đăng ký – cấp Giấy chứng nhận lần đầu</h1>
+          </div>
+          <nav className="hidden md:flex gap-3 text-sm">
+            <a href="#tong-quan" className="hover:text-sky-700">Nội dung</a>
+            <a href="#ho-so" className="hover:text-sky-700">Hồ sơ</a>
+            <a href="#quy-trinh" className="hover:text-sky-700">Quy trình</a>
+            <a href="#phi-thue" className="hover:text-sky-700">Tiền sử dụng đất</a>
+            <a href="#tro-giup" className="hover:text-sky-700">Ghi chú</a>
+          </nav>
+        </div>
+      </header>
+
+      {/* Intro band */}
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <div className="rounded-2xl border bg-white p-5 md:p-6 shadow-sm">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl md:text-2xl font-semibold">Trường hợp áp dụng</h2>
+              <p className="text-slate-600 mt-1">Hộ gia đình, cá nhân đang sử dụng đất <strong>không có giấy tờ</strong>, sử dụng ổn định, <strong>không vi phạm pháp luật đất đai</strong>, phù hợp quy hoạch, đề nghị công nhận và cấp GCN.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Pill>⚖️ Điều 138 – Luật Đất đai 2024</Pill>
+              <Pill>🧾 NĐ 101/2024 – thủ tục</Pill>
+              <Pill>📐 NĐ 102/2024 – chi tiết</Pill>
+              <Pill>💰 NĐ 103/2024 – Điều 10</Pill>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nội dung */}
+      <Section id="tong-quan" title="1) Nội dung & điều kiện cốt lõi">
+        <ul>
+          <li>Đất đang sử dụng <strong>ổn định</strong>; không tranh chấp; không lấn chiếm; <em>phù hợp quy hoạch</em>.</li>
+          <li>UBND cấp xã xác nhận nguồn gốc, thời điểm sử dụng và tình trạng tranh chấp.</li>
+          <li>Diện tích đất ở được công nhận có xét <strong>hạn mức</strong> theo quy định địa phương.</li>
+        </ul>
+      </Section>
+
+      <Section id="ho-so" title="2) Hồ sơ cần chuẩn bị (mẫu sẵn dùng)">
+        <ol>
+          <li><strong>Đơn đăng ký, cấp GCN lần đầu</strong> (Mẫu 04/ĐK – 01 bản).</li>
+          <li><strong>Giấy tờ nhân thân</strong>: CCCD/CMND, sổ hộ khẩu/định danh.</li>
+          <li><strong>Trích đo địa chính / hồ sơ kỹ thuật thửa đất</strong> (VPĐKĐĐ hoặc đơn vị đủ điều kiện lập).</li>
+          <li><strong>Chứng cứ sử dụng ổn định</strong> (nếu có): biên lai thuế, hóa đơn điện nước, ảnh hiện trạng, xác nhận khu phố/thôn.</li>
+          <li><strong>Tờ khai nghĩa vụ tài chính</strong> (phát hành sau khi có Phiếu chuyển thông tin sang cơ quan thuế).</li>
+        </ol>
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sky-700 font-medium">Mẹo chuẩn bị nhanh</summary>
+          <ul className="mt-2">
+            <li>Thu thập chứng cứ theo mốc thời gian càng sớm càng tốt để chứng minh ổn định.</li>
+            <li>Kiểm tra quy hoạch sử dụng đất tại địa phương trước khi nộp.</li>
+            <li>Cắm mốc, mô tả ranh giới rõ ràng; biên bản mốc ranh với liền kề (nếu cần).</li>
+          </ul>
+        </details>
+      </Section>
+
+      <Section id="quy-trinh" title="3) Quy trình thực hiện – 7 bước">
+        <ol>
+          <li><strong>Nộp hồ sơ</strong> tại UBND cấp xã (nếu tiếp nhận) hoặc Chi nhánh VPĐKĐĐ nơi có đất.</li>
+          <li><strong>Tiếp nhận & giấy hẹn</strong> (thiếu sẽ yêu cầu bổ sung).</li>
+          <li><strong>Đo đạc – lập hồ sơ địa chính</strong> (VPĐKĐĐ).</li>
+          <li><strong>UBND xã xác nhận</strong> nguồn gốc, thời điểm sử dụng, tranh chấp, quy hoạch.</li>
+          <li><strong>Phiếu chuyển thông tin</strong> sang cơ quan thuế để tính nghĩa vụ.</li>
+          <li><strong>Thông báo nộp tiền</strong>: tiền SDĐ (Điều 10 NĐ 103), LPTB, phí thẩm định…</li>
+          <li><strong>Nộp tiền & nhận GCN</strong> tại bộ phận một cửa/VPĐKĐĐ theo giấy hẹn.</li>
+        </ol>
+        <p className="mt-3 text-sm text-slate-600">Thời hạn thường ≤ 30 ngày làm việc (khu vực khó khăn có thể dài hơn).</p>
+      </Section>
+
+      <Section id="phi-thue" title="4) Tiền sử dụng đất (\"thuế đất\") – Điều 10 NĐ 103/2024">
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <h3 className="font-semibold mb-3">Tóm tắt mức thu theo nguồn gốc</h3>
+            <ul className="space-y-2 text-sm">
+              <li>🔹 <strong>10% – 20%</strong>: Nhận chuyển nhượng <em>không giấy tờ</em> nhưng sử dụng ổn định, phù hợp quy hoạch (trong hạn mức).</li>
+              <li>🔹 <strong>40% – 60%</strong>: Đất nông nghiệp/vườn/ao hoặc giao không đúng thẩm quyền, nay công nhận đất ở (trong hạn mức).</li>
+              <li>🔹 <strong>50%</strong>: Đất ở <em>không giấy tờ</em>, sử dụng ổn định, trong hạn mức.</li>
+              <li>🔹 <strong>100%</strong>: Phần <em>vượt hạn mức</em> (tính theo <strong>giá đất cụ thể</strong>) hoặc trường hợp phải nộp đủ.</li>
+            </ul>
+            <div className="mt-4 text-xs text-slate-600">
+              <p><strong>Giá đất áp dụng</strong>:</p>
+              <ul className="list-[square] pl-5 mt-1">
+                <li>Trong hạn mức: sử dụng <em>Bảng giá đất</em> của tỉnh.</li>
+                <li>Vượt hạn mức: sử dụng <em>Giá đất cụ thể</em> do UBND tỉnh quyết định.</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Calculator */}
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <h3 className="font-semibold mb-3">Ước tính nhanh (tham khảo)</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <label className="col-span-1">Diện tích xin công nhận (m²)
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={area} min={0} onChange={(e) => setArea(parseFloat(e.target.value) || 0)} />
+              </label>
+              <label className="col-span-1">Hạn mức đất ở (m²)
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={limit} min={0} onChange={(e) => setLimit(parseFloat(e.target.value) || 0)} />
+              </label>
+              <label>Giá đất (Bảng giá) – VND/m²
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={priceTable} min={0} onChange={(e) => setPriceTable(parseFloat(e.target.value) || 0)} />
+              </label>
+              <label>Giá đất cụ thể – VND/m²
+                <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={priceSpecific} min={0} onChange={(e) => setPriceSpecific(parseFloat(e.target.value) || 0)} />
+              </label>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-sm font-medium mb-2">Chọn tỷ lệ trong hạn mức (nguồn gốc đất):</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                {tiers.map((opt) => (
+                  <button key={opt.k} onClick={() => setTier(opt.k)} className={`rounded-lg border px-3 py-2 ${tier === opt.k ? "bg-sky-600 text-white border-sky-700" : "bg-white hover:bg-slate-50"}`}>
+                    {opt.t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-2 text-sm">
+              <div className="flex justify-between"><span>Diện tích trong hạn mức:</span><strong>{within} m²</strong></div>
+              <div className="flex justify-between"><span>Diện tích vượt hạn mức:</span><strong>{exceed} m²</strong></div>
+              <div className="flex justify-between"><span>Tiền SDĐ (trong hạn mức):</span><strong>{currency(tienTrongHan)}</strong></div>
+              <div className="flex justify-between"><span>Tiền SDĐ (vượt hạn mức):</span><strong>{currency(tienVuotHan)}</strong></div>
+              <div className="flex justify-between"><span>Lệ phí trước bạ (0,5% × diện tích × bảng giá):</span><strong>{currency(lePhiTruocBa)}</strong></div>
+              <hr className="my-1" />
+              <div className="flex justify-between text-base"><span>Tổng ước tính:</span><strong className="text-sky-700">{currency(tong)}</strong></div>
+            </div>
+            <p className="mt-2 text-xs text-slate-600">Kết quả chỉ mang tính tham khảo. Số chính thức do cơ quan thuế xác định dựa trên Phiếu chuyển thông tin, hạn mức địa phương và giá đất hiệu lực.</p>
+          </div>
+        </div>
+      </Section>
+
+      <Section id="tro-giup" title="5) Ghi chú quan trọng & tải biểu mẫu">
+        <ul>
+          <li><strong>Hạn mức</strong> khác nhau theo địa phương – tra cứu văn bản hiện hành của tỉnh/thành.</li>
+          <li><strong>Giá đất</strong> tính nghĩa vụ: trong hạn mức = Bảng giá đất; vượt hạn mức = Giá đất cụ thể.</li>
+          <li>Chuẩn bị đầy đủ <em>chứng cứ sử dụng ổn định</em> để làm rõ nguồn gốc, rút ngắn thẩm định.</li>
+        </ul>
+        <div className="mt-4 rounded-xl border bg-white p-4 text-sm">
+          <p className="font-medium">Tải biểu mẫu (tham khảo)</p>
+          <ul className="list-disc pl-5 mt-1">
+            <li><a className="text-sky-700 hover:underline" href="#">Mẫu 04/ĐK – Đơn đăng ký, cấp GCN lần đầu</a></li>
+            <li><a className="text-sky-700 hover:underline" href="#">Phiếu yêu cầu cung cấp thông tin đất đai (Mẫu 14)</a></li>
+            <li><a className="text-sky-700 hover:underline" href="#">Tờ khai lệ phí trước bạ</a></li>
+          </ul>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">Dẫn chiếu pháp lý: Điều 138 Luật Đất đai 2024; NĐ 101/2024; NĐ 102/2024; Điều 3–6 & Điều 10 NĐ 103/2024.</p>
+      </Section>
+
+      {/* Footer */}
+      <footer className="mx-auto max-w-5xl px-4 pb-12">
+        <div className="border rounded-2xl p-5 bg-white text-sm text-slate-600">
+          Trang hướng dẫn có thể in hoặc chia sẻ trực tuyến. Tùy chỉnh hạn mức, giá đất và tỷ lệ theo hồ sơ thực tế của địa phương.
         </div>
       </footer>
     </div>
